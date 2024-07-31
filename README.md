@@ -1,9 +1,59 @@
 # DACON_Finance_AI_Search
 # 사용 라이브러리 및 용도
+
 # 단계별 역할
-## 1. 라이브러리 설치
-## 2. 라이브러리 임포트
-## 3. PDF 처리 및 벡터 데이터베이스 생성
+## 1. PDF 처리
+```python
+doc = fitz.open(file_path)
+```
+PDF 파일을 엽니다.
+
+```python
+text = ''
+for page in doc:
+    text += page.get_text()
+```
+모든 페이지의 텍스트를 추출합니다.
+
+```python
+splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+chunk_temp = splitter.split_text(text)
+```
+텍스트를 chunk 단위로 분할합니다.
+> chunk_size: 
+chunk_overlab: 
+
+```python
+chunks = [Document(page_content=t) for t in chunk_temp]
+```
+나눈 조각들을 Document 객체 리스트로 생성하여 chunks로 사용합니다.
+
+## 2. 벡터 데이터베이스 만들기
+```python
+model_kwargs = {'device': 'cuda'}
+encode_kwargs = {'normalize_embeddings': True}
+```
+임베딩에 전달할 파라미터를 선정합니다.
+> 임베딩 정규화란?
+
+```python
+embeddings = HuggingFaceEmbeddings(model_name=model_path, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs)
+```
+chunk를 벡터로 변환하기 위한 임베딩을 생성합니다.
+> 임베딩이란?
+
+```python
+db = FAISS.from_documents(chunks, embedding=embeddings)
+```
+PDF 파일에서 추출한 텍스트 조각들을 벡터로 변환하여 FAISS 벡터 데이터베이스를 만듭니다.
+
+## 3. PDF 문서 처리
+각 PDF 문서에 대한 벡터 데이터베이스와 리트리버를 생성합니다.
+## 4. LLM 파이프라인 설정
+Llama-2-ko-7b 모델을 로드하고, 4비트 양자화를 설정하여 파이프라인을 구성합니다.
+## 5. 질문에 대한 답변 생성
+각 질문에 대한 관련 문서를 검색하고, LLM을 사용하여 답변을 생성합니다.
+
 # 개발 로그
 ## 1. cpu로 코드 전환
 ### 라이브러리 설치 변경
@@ -51,4 +101,7 @@ def setup_llm_pipeline():
 
     return hf
 ```
-## 2. colab으로 이전
+## 2. colab으로 이전 후 첫 제출
+### google drive mount 및 경로 변경
+### 제출 성능
+0.2476
