@@ -48,10 +48,71 @@ db = FAISS.from_documents(chunks, embedding=embeddings)
 PDF 파일에서 추출한 텍스트 조각들을 벡터로 변환하여 FAISS 벡터 데이터베이스를 만듭니다.
 
 ## 3. PDF 문서 처리
+```python
+def normalize_path(path):
+    return unicodedata.normalize('NFC', path)
+```
+경로 문자열을 유니코드 정규화합니다.
+
+```python
+normalized_path = normalize_path(path)
+full_path = os.path.normpath(os.path.join(base_directory, normalized_path.lstrip('./'))) if not os.path.isabs(normalized_path) else normalized_path
+pdf_title = os.path.splitext(os.path.basename(full_path))[0]
+```
+경로를 정규화하고 파일명을 추출합니다.
+
+```python
+chunks = process_pdf(full_path)
+db = create_vector_db(chunks)
+retriever = db.as_retriever(search_type="mmr", search_kwargs={'k': 3, 'fetch_k': 8})
+```
 각 PDF 문서에 대한 벡터 데이터베이스와 리트리버를 생성합니다.
+
 ## 4. LLM 파이프라인 설정
+```python
+bnb_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_use_double_quant=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.bfloat16)
+model_id = "beomi/llama-2-ko-7b"
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+tokenizer.use_default_system_prompt = False
+model = AutoModelForCausalLM.from_pretrained(model_id, quantization_config=bnb_config, device_map="auto", trust_remote_code=True)
+text_generation_pipeline = pipeline(model=model, tokenizer=tokenizer, task="text-generation", temperature=0.2, return_full_text=False, max_new_tokens=128)
+hf = HuggingFacePipeline(pipeline=text_generation_pipeline)
+```
 Llama-2-ko-7b 모델을 로드하고, 4비트 양자화를 설정하여 파이프라인을 구성합니다.
+
 ## 5. 질문에 대한 답변 생성
+```python
+def normalize_string(s):
+    return unicodedata.normalize('NFC', s)
+```
+소스 문자열을 유니코드 정규화합니다.
+
+```python
+def format_docs(docs):
+    context = ""
+    for doc in docs:
+        context += doc.page_content
+        context += '\n'
+    return context
+```
+검색된 문서의 텍스트를 하나의 문자열로 포맷팅합니다.
+
+```python
+source = normalize_string(row['Source'])
+question = row['Question']
+normalized_keys = {normalize_string(k): v for k, v in pdf_databases.items()}
+retriever = normalized_keys[source]['retriever']
+template = """
+다음 정보를 바탕으로 질문에 답하세요:
+{context}
+질문: {question}
+답변:
+"""
+prompt = PromptTemplate.from_template(template)
+rag_chain = ({"context": retriever | format_docs, "question": RunnablePassthrough()} | prompt | llm | StrOutputParser())
+full_response = rag_chain.invoke(question)
+results.append({"Source": row['Source'], "Source_path": row['Source_path'], "Question": question, "Answer": full_response})
+```
 각 질문에 대한 관련 문서를 검색하고, LLM을 사용하여 답변을 생성합니다.
 
 # 개발 로그
