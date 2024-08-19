@@ -235,3 +235,37 @@ def setup_llm_pipeline():
 ### google drive mount 및 경로 변경
 ### 제출 성능
 0.2476
+
+## 3. 텍스트 청크 크기 조정
+
+### 수정 사항
+```python
+# HuggingFacePipeline 객체 생성
+text_generation_pipeline = pipeline(
+    model=model,
+    tokenizer=tokenizer,
+    task="text-generation",
+    do_sample=True,
+    temperature=0.2,
+    return_full_text=False,
+    max_new_tokens=128,
+)
+```
+do_sample=True로 설정하여 경고메시지 제거
+
+### 성능
+||chunk_size|chunk_overlap|score|
+|-|-|-|-|
+|기존|800|50|0.2476|
+|1차|1000|100|0.2671|
+|2차|1000|150|0.2895|
+|3차|512|32|0.2819|
+|4차|1500|200|0.2790|
+
+## 4. 텍스트 전처리 개선
+
+## 5. 모델 변경
+
+## 6. 벡터 검색 최적화
+
+## 7. 프롬프트 개선
